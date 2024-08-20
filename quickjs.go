@@ -145,6 +145,10 @@ static JSContext* NewJsContext(JSRuntime *rt) {
 
 	return ctx;
 }
+
+static inline JSModuleDef* get_js_module_def(JSValue module) {
+    return (JSModuleDef*)JS_VALUE_GET_PTR(module);
+}
 */
 import "C"
 
@@ -784,4 +788,43 @@ func (v Value) DefineProperty(name string, desc PropertyDescriptor) error {
 		return errors.New("error defining the property descriptor")
 	}
 	return nil
+}
+
+type Module struct {
+	ctx *Context
+	def *C.JSModuleDef
+}
+
+func (m *Module) Namespace() (Value, error) {
+	r := C.JS_GetModuleNamespace(m.ctx.ref, m.def)
+	if C.JS_IsException(r) == 1 {
+		return Value{}, fmt.Errorf("error retrieving module namespace: %w", m.ctx.Exception())
+	}
+	return Value{ctx: m.ctx, ref: r}, nil
+}
+
+func (ctx *Context) LoadModule(filename string, code string) (*Module, error) {
+	// TODO: cache
+
+	codePtr := C.CString(code)
+	defer C.free(unsafe.Pointer(codePtr))
+
+	filenamePtr := C.CString(filename)
+	defer C.free(unsafe.Pointer(filenamePtr))
+
+	module := C.JS_Eval(ctx.ref, codePtr, C.size_t(len(code)), filenamePtr, C.int(C.JS_EVAL_TYPE_MODULE|C.JS_EVAL_FLAG_COMPILE_ONLY))
+
+	if C.JS_IsException(module) == 1 {
+		return nil, fmt.Errorf("module compilation error: %w", ctx.Exception())
+	}
+
+	eval_result := C.JS_EvalFunction(ctx.ref, module)
+
+	if C.JS_IsException(eval_result) == 1 {
+		return nil, fmt.Errorf("module execution error: %w", ctx.Exception())
+	}
+
+	def := C.get_js_module_def(module)
+
+	return &Module{ctx, def}, nil
 }

@@ -183,6 +183,10 @@ func (r Runtime) SetMemoryLimit(limit uint32) {
 	C.JS_SetMemoryLimit(r.ref, C.size_t(limit))
 }
 
+func (r Runtime) SetMaxStackSize(limit uint32) {
+	C.JS_SetMaxStackSize(r.ref, C.size_t(limit))
+}
+
 func (r Runtime) StdFreeHandlers() {
 	C.js_std_free_handlers(r.ref)
 }
